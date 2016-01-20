@@ -18,4 +18,5 @@ If you have questions or ideas, you can always contact us using our [contact for
 * ## [MCP7940N](/mcp7940n)
     MCP7940N is a popular RTC (Real-Time Clock) chip from Microchip. I
     this example we present how to prototype I2C driver outside hostile
-    Assembly/C/C++ environment.
+    Assembly/C/C++ environment and perform **automated hardware test**
+    using *Arduino Micro*.
