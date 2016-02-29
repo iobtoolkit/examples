@@ -14,7 +14,11 @@ If you have questions or ideas, you can always contact us using our [contact for
     We can't miss classic "Hello, world!" of embedded software:
     a blinking LED. This example uses on-board L LED on pin 13 to demonstrate
     our Arduino sketch runtime method.
-    
+
+* ## [DS1721](/ds1721)
+    DS1721 is a temperature sensor from Maxim Dallas. This example
+    demonstrates how to use DS1721 to measure temperature.
+
 * ## [MCP7940N](/mcp7940n)
     MCP7940N is a popular RTC (Real-Time Clock) chip from Microchip. I
     this example we present how to prototype I2C driver outside hostile
