@@ -1,4 +1,5 @@
-from iob.devices import ArduinoLeonardo
+from iob.devices.arduinouno import ArduinoUnoTwi
+from iob.devices.arduinoleonardo import ArduinoLeonardo
 from iob import I2CTransaction
 from time import sleep
 import struct
@@ -16,7 +17,7 @@ class Ds1721(object):
     CMD_STOP_CONVERT = 0x22
     CMD_READ_TEMP = 0xAA
 
-    def __init__(self, device, chip_address):
+    def __init__(self, device, chip_address=0b000):
         """
         Create DS1721 device.
 
@@ -27,46 +28,47 @@ class Ds1721(object):
         self.write_address = (self.BASE_ADDRESS | (chip_address << 1))
         self.read_address = self.BASE_ADDRESS | (chip_address << 1) | 0b00000001
 
-    def connect(self):
-        """
-        Connect IOB device
-        """
-        self.device.connect()
-
-    def disconnect(self):
-        """
-        Disconnect IOB device
-        """
-        self.device.disconnect()
-
     def configure(self):
         """
         Write configuration register.
-        12-bit conversion accuracy
-        1-shot mode to conserve power
         """
-        # Boost clock speed to 400kHz
-        self.device.i2c_clock = ArduinoLeonardo.I2CClock.F400k
 
         # Configure DS1720
-        t = I2CTransaction()
-        t.s().a(self.write_address).w(self.CMD_ACCESS_CONFIG).w(0b00001101).p()
-        self.device.i2c_run(t)
+        self.device.i2c_start()
+        self.device.i2c_address(self.write_address)
+        self.device.i2c_write(self.CMD_ACCESS_CONFIG)
+
+        # Configuration bits:
+        # 0b00000001 - single shot
+        # 0b00001100 - 12bit resolution
+        self.device.i2c_write(0b00001101)
+        self.device.i2c_stop()
 
     def read_config(self):
         """
         Read configuration register. Configuration register contains
         also status bit DONE.
         """
-        t = I2CTransaction()
-        t.s().a(self.write_address).w(self.CMD_ACCESS_CONFIG)
-        t.rs().a(self.read_address).rn().p()
-        ret = self.device.i2c_run(t)
-        return ret.get_data(5)  # result of rn() command
+        # You can read configuration using the following transaction
+        # t = I2CTransaction()
+        # t.s().a(self.write_address).w(self.CMD_ACCESS_CONFIG)
+        # t.rs().a(self.read_address).rn().p()
+        # ret = self.device.i2c_run(t)
+        # return ret.get_data(5)  # result of rn() command
+        # Simpler API:
+        self.device.i2c_start()
+        self.device.i2c_address(self.write_address)
+        self.device.i2c_write(self.CMD_ACCESS_CONFIG)
+        self.device.i2c_rep_start()
+        self.device.i2c_address(self.read_address)
+        byte = self.device.i2c_read()
+        self.device.i2c_stop()
+        return struct.unpack('B', byte)[0]
 
     def is_done(self):
         """
         This is a wrapper over read_config() that extracts status bit DONE
+
         :return: True if conversion is done and result is ready, False otherwise
         """
         config_register = self.read_config()
@@ -78,12 +80,13 @@ class Ds1721(object):
         and must be converted to Celsius
         :return: Temperature in Celsius degrees
         """
-        t = I2CTransaction()
-        t.s().a(self.write_address).w(self.CMD_READ_TEMP)
-        t.rs().a(self.read_address).ra().rn().p()
-        ret = self.device.i2c_run(t)
-        # 2 bytes read from DS1721
-        temp_bytes = bytes([ret.get_data(5), ret.get_data(6)])
+        self.device.i2c_start()
+        self.device.i2c_address(self.write_address)
+        self.device.i2c_write(self.CMD_READ_TEMP)
+        self.device.i2c_rep_start()
+        self.device.i2c_address(self.read_address)
+        temp_bytes = self.device.i2c_read(2)
+        self.device.i2c_stop()
         # We use struct to correctly handle signed integer
         raw_temp = struct.unpack('>h', temp_bytes)[0]
         celsius = raw_temp / 256
@@ -93,26 +96,43 @@ class Ds1721(object):
         """
         Trigger conversion. Conversion takes ~750ms.
         """
-        t = I2CTransaction()
-        t.s().a(self.write_address).w(self.CMD_START_CONVERT).p()
-        self.device.i2c_run(t)
+
+        # The code below is equivalent to the following transaction
+        # t = I2CTransaction()
+        # t.s().a(self.write_address).w(self.CMD_START_CONVERT).p()
+        # r = self.device.i2c_run(t)
+
+        self.device.i2c_start()
+        self.device.i2c_address(self.write_address)
+        self.device.i2c_write(self.CMD_START_CONVERT)
+        self.device.i2c_stop()
 
 
-arduino = ArduinoLeonardo('/dev/ttyACM0')
+if __name__ == "__main__":
 
-dev = Ds1721(arduino, chip_address=0b111)
-dev.connect()
-dev.configure()
-dev.start_conversion()
+    arduino = ArduinoUnoTwi('/dev/ttyACM0')
+    #arduino = ArduinoLeonardo('/dev/ttyACM0')
 
-while True:
+    arduino.connect()
+    arduino.i2c_enable = True
+    arduino.i2c_verbose = False  # True will dump every I2C transaction to console
 
-    if not dev.is_done():
-        print('Conversion in progress...')
-        sleep(0.20)
-    else:
-        temp = dev.read_temperature()
-        print('Chip temperature: %s' % temp)
-        break
+    dev = Ds1721(arduino, chip_address=0b111)
 
-dev.disconnect()
+    print('*** Configure DS1721')
+    dev.configure()
+
+    print('*** Start conversion - it should take ~750ms')
+    dev.start_conversion()
+
+    while True:
+        print('*** Checking conversion status...')
+        if not dev.is_done():
+            sleep(0.2)
+        else:
+            print('*** Reading remperature.')
+            temp = dev.read_temperature()
+            print('*** Chip temperature: %s' % temp)
+            break
+
+    arduino.disconnect()
