@@ -24,3 +24,9 @@ If you have questions or ideas, you can always contact us using our [contact for
     this example we present how to prototype I2C driver outside hostile
     Assembly/C/C++ environment and perform **automated hardware test**
     using *Arduino Micro*.
+
+* ## [24LC32](/24lc32)
+    24LC32 is very popular EEPROM with I2C interface. This example demonstrates
+    how to use I2C Helper API, introduced in I/O Blocks Toolkit 1.2.0. It runs on
+    any supported Arduino board with I2C-capable firmware, including *ArduinoUnoTwi*,
+    bundled with I/O Blocks Toolkit.
